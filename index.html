@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>石头剪刀布冒险游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            background: #d0f1ff;
+            display: block;
+            margin: auto;
+            border: 1px solid #000;
+        }
+
+        #controls {
+            text-align: center;
+            margin: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+
+        #instructions {
+            text-align: center;
+            margin: 10px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="400"></canvas>
+<div id="controls">
+    <button id="startButton">开始游戏</button>
+</div>
+<div id="instructions">
+    用键盘 <b>1</b> - 剪刀，<b>2</b> - 石头，<b>3</b> - 布。
+</div>
+
+<script>
+    // 画布设置
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // 玩家属性
+    const player = {
+        x: 50,
+        y: 175,
+        size: 50,
+        shape: "rock", // 初始形态为石头
+    };
+
+    // 游戏状态
+    let obstacles = [];
+    const obstacleShapes = ["rock", "scissors", "paper"]; // 小怪形状
+    let viewX = 0; // 视角的X偏移
+    let gameRunning = false; // 游戏运行状态
+    let spawnInterval = null; // 小怪生成的定时器
+    let speed = 2; // 视角的前进速度
+    let score = 0; // 分数初始化为0
+
+    // 随机生成一个小怪在玩家视角前方
+    function generateObstacle() {
+        const randomDistance = Math.random() * 500 + 300; // 随机生成距离玩家300到800之间的位置
+        const randomShape = obstacleShapes[Math.floor(Math.random() * 3)];
+        obstacles.push({
+            x: viewX + canvas.width + randomDistance,
+            y: 175,
+            shape: randomShape,
+        });
+    }
+
+    // 游戏图形渲染
+    function draw() {
+        // 清空画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 绘制玩家
+        drawShape(player.x, player.y, player.shape, "blue");
+
+        // 绘制障碍（小怪）
+        obstacles.forEach((obstacle) => {
+            drawShape(obstacle.x - viewX, obstacle.y, obstacle.shape, "red");
+        });
+
+        // 显示分数
+        drawScore();
+    }
+
+    // 绘制分数
+    function drawScore() {
+        ctx.fillStyle = "black";
+        ctx.font = "20px Arial";
+        ctx.fillText(`分数: ${score}`, 10, 30); // 左上角显示分数
+    }
+
+    // 绘制形状方法
+    function drawShape(x, y, shape, color) {
+        ctx.fillStyle = color;
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+
+        if (shape === "rock") {
+            ctx.beginPath();
+            ctx.arc(x + 25, y + 25, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        } else if (shape === "scissors") {
+            ctx.beginPath();
+            ctx.moveTo(x, y + 50);
+            ctx.lineTo(x + 50, y);
+            ctx.lineTo(x + 50, y + 50);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        } else if (shape === "paper") {
+            ctx.fillRect(x, y, 50, 50);
+            ctx.strokeRect(x, y, 50, 50);
+        }
+    }
+
+    // 更新游戏状态
+    function updateGame() {
+        if (gameRunning) {
+            viewX += speed; // 视角向前推进
+
+            // 更新小怪的位置（匀速向左移动）
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obstacle = obstacles[i];
+
+                // 如果小怪离开左侧屏幕范围，则移除
+                if (obstacle.x - viewX < -player.size) {
+                    obstacles.splice(i, 1);
+                }
+
+                // 检测碰撞
+                if (isColliding(player, {
+                    x: obstacle.x - viewX,
+                    y: obstacle.y,
+                    size: player.size,
+                })) {
+                    const result = battle(player.shape, obstacle.shape);
+                    if (result === "lose") {
+                        endGame(false); // 游戏失败
+                    } else if (result === "win") {
+                        obstacles.splice(i, 1); // 击败小怪则移除
+                        score++; // 分数增加
+                    } else if (result === "draw") {
+                        // 平局情况（不加分，但不移除小怪）
+                        console.log("平局！继续游戏...");
+                    }
+                }
+            }
+
+            // 移动速度逐渐加快，设置最大速度
+            speed = Math.min(speed + 0.01, 7);
+
+            // 绘制游戏场景
+            draw();
+
+            // 递归调用更新
+            requestAnimationFrame(updateGame);
+        }
+    }
+
+    // 碰撞检测
+    function isColliding(player, obstacle) {
+        return (
+            player.x + player.size > obstacle.x &&
+            player.x < obstacle.x + player.size &&
+            player.y + player.size > obstacle.y &&
+            player.y < obstacle.y + player.size
+        );
+    }
+
+    // 战斗逻辑
+    function battle(playerShape, obstacleShape) {
+        if (playerShape === obstacleShape) {
+            return "draw"; // 平局处理为 "draw"
+        }
+
+        if (
+            (playerShape === "rock" && obstacleShape === "scissors") ||
+            (playerShape === "scissors" && obstacleShape === "paper") ||
+            (playerShape === "paper" && obstacleShape === "rock")
+        ) {
+            return "win";
+        }
+
+        return "lose";
+    }
+
+    // 键盘快捷键切换形态
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "1") player.shape = "scissors";
+        if (event.key === "2") player.shape = "rock";
+        if (event.key === "3") player.shape = "paper";
+    });
+
+    // 游戏启动
+    function startGame() {
+        if (!gameRunning) {
+            gameRunning = true;
+            obstacles = []; // 清空小怪
+            viewX = 0; // 重置视角
+            speed = 2; // 重置速度
+            score = 0; // 重置分数
+
+            // 每1.5秒生成一个随机小怪
+            spawnInterval = setInterval(generateObstacle, 1500);
+
+            updateGame(); // 启动游戏更新循环
+        }
+    }
+
+    // 游戏结束
+    function endGame(won) {
+        gameRunning = false;
+        clearInterval(spawnInterval); // 停止生成小怪
+
+        if (!won) {
+            alert(`游戏结束！你被打败了！最终得分: ${score}`);
+        }
+
+        document.getElementById("startButton").disabled = false;
+    }
+
+    // 按钮事件绑定
+    document.getElementById("startButton").addEventListener("click", () => {
+        startGame();
+        document.getElementById("startButton").disabled = true;
+    });
+
+    // 初始绘制
+    draw();
+</script>
+</body>
+</html>
